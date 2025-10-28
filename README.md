@@ -1,4 +1,4 @@
-# THE HA-Addon-Fabricator
+# HA-Addon-Fabricator
 
 ## HACMA - Home Assistant Compose Manager Add-on
 
