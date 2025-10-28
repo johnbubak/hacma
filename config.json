@@ -1,9 +1,9 @@
 {
   "name": "HACMA - HA-Add-on Fabrikator",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "slug": "hacma",
   "description": "Erzeugt dynamisch neue HA-Add-ons basierend auf einer Docker Compose YAML-Definition.",
-  "url": "https://github.com/johnbubak/hacma",
+  "url": "https://github.com/johnbubak/hacma", 
   "startup": "once",
   "boot": "manual",
   "arch": ["amd64", "aarch64"],
@@ -12,7 +12,6 @@
   "map": ["config:rw"],
   "options": {
     "project_name_selector": "none",
-    "compose_yaml_to_load": "",
     "compose_yaml": "",
     "action": "none"
   },
