@@ -17,20 +17,20 @@
   },
   "schema": {
     "project_name_selector": {
-      "name": "1. Projekt laden",
-      "description": "Wählen Sie ein bestehendes Projekt zum Bearbeiten aus. Wichtig: Nach Auswahl 'action: load_config' wählen und speichern.",
+      "name": "1. Project Selector", 
+      "description": "Select an existing project to edit. Action 'load_config' required before saving.", 
       "type": "select",
       "options": ["none"],
       "default": "none"
     },
     "compose_yaml": {
-      "name": "2. Compose YAML Definition",
-      "description": "Fügen Sie hier die Docker Compose YAML ein.",
+      "name": "2. Compose YAML Definition", 
+      "description": "Insert the Docker Compose YAML here.", 
       "type": "textarea"
     },
     "action": {
-      "name": "3. Aktion",
-      "description": "Die Aktion wird beim Speichern ausgeführt (das Add-on startet einmalig).",
+      "name": "3. Action", 
+      "description": "The action is executed upon saving (the add-on starts once).",
       "type": "select",
       "options": ["none", "load_config", "generate_and_up", "down_and_remove"],
       "default": "none"
