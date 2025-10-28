@@ -1,0 +1,40 @@
+{
+  "name": "HA-Add-on Fabrikator - HACMA - HomeAssistant-Compose-Manager-Addon",
+  "version": "1.0.0",
+  "slug": "hacma",
+  "description": "Erzeugt dynamisch neue HA-Add-ons basierend auf einer Docker Compose YAML-Definition.",
+  "url": "https://github.com/johnbubak/hacma",
+  "startup": "once",
+  "boot": "manual",
+  "arch": ["amd64", "aarch64"],
+  "privileged": true,
+  "host_network": true,
+  "map": ["config:rw"],
+  "options": {
+    "project_name_selector": "none",
+    "compose_yaml_to_load": "",
+    "compose_yaml": "",
+    "action": "none"
+  },
+  "schema": {
+    "project_name_selector": {
+      "name": "1. Projekt laden",
+      "description": "Wählen Sie ein bestehendes Projekt zum Bearbeiten aus. Wichtig: Nach Auswahl 'action: load_config' wählen und speichern.",
+      "type": "select",
+      "options": ["none"],
+      "default": "none"
+    },
+    "compose_yaml": {
+      "name": "2. Compose YAML Definition",
+      "description": "Fügen Sie hier die Docker Compose YAML ein.",
+      "type": "textarea"
+    },
+    "action": {
+      "name": "3. Aktion",
+      "description": "Die Aktion wird beim Speichern ausgeführt (das Add-on startet einmalig).",
+      "type": "select",
+      "options": ["none", "load_config", "generate_and_up", "down_and_remove"],
+      "default": "none"
+    }
+  }
+}

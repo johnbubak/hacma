@@ -1,13 +1,15 @@
-# HACMA - Home Assistant Compose Manager Add-on
+# THE HA-Addon-Fabricator
+
+## HACMA - Home Assistant Compose Manager Add-on
 
 [![GitHub Release][releases-shield]][releases]
 [![License][license-shield]][license]
 
-Home Assistant Add-on Repository für den **HACMA - Compose Manager Fabrikator**.
+Home Assistant Add-on Repository für den **HACMA - Compose Manager the HomeAssistant Addon Fabrikator**.
 
 ## 🚀 Was ist HACMA?
 
-HACMA (Home Assistant Compose Manager Add-on) ist ein leistungsstarkes Werkzeug, das es ermöglicht, **jedes Docker Compose YAML-Projekt in ein eigenständiges, lokales Home Assistant Add-on zu verwandeln und zu verwalten.**
+HACMA (Home Assistant Compose Manager Add-on) ist ein leistungsstarkes Werkzeug, das es ermöglicht, **jedes Docker Compose Projekt in ein eigenständiges, lokales Home Assistant Add-on zu verwandeln und zu verwalten.**
 
 Anstatt manuell Add-ons zu erstellen, nutzt der Fabrikator die von Ihnen bereitgestellte Compose-Definition, generiert die notwendigen Konfigurationsdateien (`config.json`, `run.sh`) und verwendet `docker-compose` für den Betrieb der Dienste im Home Assistant Supervisor-Ökosystem.
 
@@ -19,8 +21,8 @@ Um dieses Add-on nutzen zu können, müssen Sie dieses Repository als Add-on-Que
 2.  Klicken Sie unten rechts auf die **drei Punkte (⋮)**.
 3.  Wählen Sie **"Repositories"**.
 4.  Fügen Sie die folgende URL hinzu:
-    `https://github.com/johnbubak/HA-Addon-Fabricator`
-5.  Installieren Sie das Add-on **"HACMA - HomeAssistant-Compose-Manager-Addon"**.
+    `https://github.com/johnbubak/hacma`
+5.  Installieren Sie das Add-on **"HA-Addon-Fabricator"**.
 
 ## ⚙️ Verwendung
 
