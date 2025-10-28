@@ -1,5 +1,5 @@
 {
-  "name": "HA-Add-on Fabrikator - HACMA - HomeAssistant-Compose-Manager-Addon",
+  "name": "HACMA - HA-Add-on Fabrikator",
   "version": "1.0.0",
   "slug": "hacma",
   "description": "Erzeugt dynamisch neue HA-Add-ons basierend auf einer Docker Compose YAML-Definition.",

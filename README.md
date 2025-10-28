@@ -1,4 +1,4 @@
-# THE HA-Addon-Fabricator
+# HA-Addon-Fabricator
 
 ## HACMA - Home Assistant Compose Manager Add-on
 
@@ -37,7 +37,7 @@ Der Manager generiert nun ein neues Add-on basierend auf Ihrem Compose-Dienst. S
 
 ***
 
-[releases-shield]: https://img.shields.io/github/release/johnbubak/HA-Addon-Fabricator.svg?style=for-the-badge
-[releases]: https://github.com/johnbubak/HA-Addon-Fabricator/releases
-[license-shield]: https://img.shields.io/github/license/johnbubak/HA-Addon-Fabricator.svg?style=for-the-badge
-[license]: https://github.com/johnbubak/HA-Addon-Fabricator/blob/main/LICENSE
+[releases-shield]: https://img.shields.io/github/release/johnbubak/hacma.svg?style=for-the-badge
+[releases]: https://github.com/johnbubak/hacma/releases
+[license-shield]: https://img.shields.io/github/license/johnbubak/hacma.svg?style=for-the-badge
+[license]: https://github.com/johnbubak/hacma/blob/main/LICENSE
