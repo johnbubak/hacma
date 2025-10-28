@@ -1,6 +1,6 @@
 {
   "name": "HACMA - HA-Add-on Fabrikator",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "slug": "hacma",
   "description": "Erzeugt dynamisch neue HA-Add-ons basierend auf einer Docker Compose YAML-Definition.",
   "url": "https://github.com/johnbubak/hacma",

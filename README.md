@@ -20,9 +20,9 @@ Um dieses Add-on nutzen zu können, müssen Sie dieses Repository als Add-on-Que
 1.  Gehen Sie in Home Assistant zu **Einstellungen** > **Add-ons**.
 2.  Klicken Sie unten rechts auf die **drei Punkte (⋮)**.
 3.  Wählen Sie **"Repositories"**.
-4.  Fügen Sie die folgende URL hinzu:
+4. Fügen Sie die folgende URL hinzu:
     `https://github.com/johnbubak/hacma`
-5.  Installieren Sie das Add-on **"HA-Addon-Fabricator"**.
+5. Installieren Sie das Add-on **"HACMA - HA-Add-on Fabrikator"**.
 
 ## ⚙️ Verwendung
 
