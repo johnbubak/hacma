@@ -7,9 +7,8 @@
   "startup": "once",
   "boot": "manual",
   "arch": ["amd64", "aarch64"],
-  "privileged": true,
   "host_network": true,
-  "map": ["config:rw"],
+  "map": ["homeassistant_config:rw"],
   "options": {
     "project_name_selector": "none",
     "compose_yaml": "",
