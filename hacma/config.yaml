@@ -1,6 +1,6 @@
 # hacma/config.yaml
 name: HACMA - HA-Add-on Fabrikator
-version: 2.1.0 
+version: 0.2.2
 slug: hacma
 description: Dynamically generates new HA add-ons based on a Docker Compose YAML definition fetched from a URL. Includes GitHub publishing feature.
 url: 'https://github.com/johnbubak/hacma'
@@ -16,30 +16,49 @@ map:
 options:
   # Management
   project_name_selector: none
-  compose_url: ""             
+  # Voreingestellte URL für ein minimales WordPress-Compose-File (ersetzen Sie diese)
+  compose_url: "https://raw.githubusercontent.com/Ihre-Quelle/HACMA-Templates/main/wordpress-minimal.yml" 
   action: none
   
   # NEUE GITHUB FELDER
   publish_addon: false               
   github_pat: ""                     
 
-  # Service Overrides
-  image: ""
-  container_name: ""
-  restart: "unless-stopped"      
-  command: ""
-  ports: ""
-  environment: ""
-  volumes: ""
-  devices: ""
-  networks: ""
+  # --- SERVICE OVERRIDES (WordPress Defaults) ---
+  image: "wordpress:latest"
+  container_name: "addon_wp_web"
+  restart: "always"      
+  
+  # Standard-Listen-Werte (als YAML-Listen dargestellt)
+  command: [] # Standardmäßig leer
+  
+  # Ports (Host:Container)
+  ports: 
+    - "80"
+    
+  # Environment (KEY=VALUE-Format)
+  environment: 
+    - "WORDPRESS_DB_HOST=db:3306"
+    - "WORDPRESS_DB_NAME=wordpress_db"
+    - "WORDPRESS_DB_USER=wp_user"
+    - "WORDPRESS_DB_PASSWORD=your_strong_password"
+    
+  # Volumes (Host:Container)
+  volumes: 
+    - "/data/plugins:/var/www/html/wp-content/plugins"
+    - "/data/themes:/var/www/html/wp-content/themes"
+    - "/data/uploads:/var/www/html/wp-content/uploads"
+    - "/data/wp_core:/var/www/html"
+    
+  devices: []
+  networks: []
   
   # Top-Level Definitionen
-  top_level_volumes: ""
-  top_level_networks: ""
+  top_level_volumes: []
+  top_level_networks: []
 
 schema:
-  # --- 1. PROJEKT-MANAGER (Laden/Löschen) ---
+  # --- 1. PROJEKT-MANAGER ---
   project_name_selector: 'match(^none$)'
   
   # --- 2. HAUPT-EINGABE ---
@@ -49,20 +68,20 @@ schema:
   publish_addon: 'bool'         
   github_pat: 'str?'           
   
-  # --- 4. SPEZIFISCHE SERVICE OVERRIDES ---
+  # --- 4. SPEZIFISCHE SERVICE OVERRIDES (Wichtige Schema-Änderungen) ---
   image: 'str?'
   container_name: 'str?'
   restart: 'str?'
-  command: 'str?'   
-  ports: 'str?'     
-  environment: 'str?'
-  volumes: 'str?'   
-  devices: 'str?'   
-  networks: 'str?'  
+  command: 'list(str)?'
+  ports: 'list(str)?'     
+  environment: 'list(str)?'
+  volumes: 'list(str)?'   
+  devices: 'list(str)?'   
+  networks: 'list(str)?'  
   
-  # --- 5. TOP-LEVEL DEFINITIONEN ---
-  top_level_volumes: 'str?'
-  top_level_networks: 'str?'
+  # --- 5. TOP-LEVEL DEFINITIONEN (Wichtige Schema-Änderungen) ---
+  top_level_volumes: 'list(str)?'
+  top_level_networks: 'list(str)?'
   
   # --- 6. AKTION ---
   action: 'match(^none$|^load_config$|^generate_and_up$|^down_and_remove$)'
