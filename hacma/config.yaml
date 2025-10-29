@@ -1,6 +1,6 @@
-# hacma/config.yaml (im Ordner hacma/)
+# hacma/config.yaml
 name: HACMA - HA-Add-on Fabrikator
-version: 0.0.1
+version: 1.0.0
 slug: hacma
 description: Dynamically generates new HA add-ons based on a Docker Compose YAML definition.
 url: 'https://github.com/johnbubak/hacma'
@@ -13,34 +13,36 @@ host_network: true
 map:
   - homeassistant_config:rw
 options:
+  # Standard-Werte für alle Felder, um die Sichtbarkeit im UI zu gewährleisten
   project_name_selector: none
-  compose_yaml: []               # Initialwert muss zu 'list' passen
-  port_mappings: []
-  env_vars: []                   # Initialwert muss zu 'list' passen
-  command_override: ""
-  device_mappings: []
+  compose_yaml: []               
+  port_mappings: []              
+  env_vars: []                   
+  command_override: ""           
+  device_mappings: []            
   action: none
 schema:
   # --- 1. PROJEKT-MANAGER ---
   project_name_selector: 'match(^none$)'
   
-  # --- 2. HAUPT-EINGABE (WIRD ZUR TEXTAREA DURCH LIST) ---
-  # ÄNDERUNG: 'list(str)' erzwingt eine Textarea.
-  # DAS SKRIPT MUSS DIESEN LIST-TYP BEHANDELN!
+  # --- 2. HAUPT-EINGABE (TEXTAREA) ---
   compose_yaml: 'list(str)'
   
-  # --- 3. SPEZIFISCHE OVERRIDES ---
-  # 'list(str)?' sollte bereits eine Textarea rendern
-  port_mappings: 'list(str)?'
+  # --- 3. SPEZIFISCHE OVERRIDES (STRUKTURIERT & TYP-VERWENDUNG) ---
   
-  # ÄNDERUNG: Auch ENV_VARS auf LIST umgestellt, um sicher Textarea zu bekommen
+  # Port-Mapping: Strukturiert, host und container verwenden den HA-Typ 'port'
+  port_mappings:
+    - host: port?
+      container: port?
+  
+  # Umgebungsvariablen (Bleibt als list(str) für einfache Textarea)
   env_vars: 'list(str)?'
   
-  # Command Override: Bleibt 'str?' (einzeilig), da es meist ein einzelner Befehl ist.
-  # Wenn Sie auch hier eine Textarea wollen: auf 'list(str)?' umstellen.
+  # Command Override
   command_override: 'str?'
   
-  device_mappings: 'list(str)?'
+  # Geräte-Mappings: Verwendet den spezifischen 'device'-Typ
+  device_mappings: 'list(device)?'
   
   # --- 4. AKTION ---
   action: 'match(^none$|^load_config$|^generate_and_up$|^down_and_remove$)'

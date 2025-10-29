@@ -47,8 +47,6 @@ def run_command(command, cwd=None):
         print(f"[CMD FEHLER] {command}")
         print(f"Stdout: {e.stdout}")
         print(f"Stderr: {e.stderr}")
-        # Wir geben True zurück, wenn der Befehl fehlschlägt, um den Fabrikator nicht abstürzen zu lassen,
-        # wenn ein Add-on nicht gestoppt werden kann (z.B. down_and_remove)
         return False
 
 def get_existing_projects():
@@ -72,8 +70,6 @@ def update_project_selector(current_options):
     """Prüft existierende Projekte und loggt sie (da Schema-Update per API komplex ist)."""
     projects = get_existing_projects()
     print(f"\n[Projekt-Update] Gefundene Projekte: {list(projects.keys())}")
-    # Hier müsste die API verwendet werden, um project_name_selector zu aktualisieren.
-    # Da dies im Add-on nur schwer möglich ist, wird dieser Teil nur geloggt.
     return projects
 
 # --- 2. CONFIG LOGIK: FINAL ---
@@ -81,11 +77,9 @@ def update_project_selector(current_options):
 def generate_addon_config(options):
     """
     Generiert die neuen Add-on-Dateien basierend auf der Compose-YAML und den Overrides.
-    Beachtet die List-Eingabetypen aus der config.yaml.
     """
     
     # --- 1. Compose YAML laden (als Liste der Zeilen) ---
-    # compose_yaml ist jetzt eine Liste von Strings (eine Zeile pro Element)
     compose_yaml_list = options.get('compose_yaml', [])
     if not compose_yaml_list:
         print("[FEHLER] Compose YAML Definition fehlt.")
@@ -117,20 +111,34 @@ def generate_addon_config(options):
     
     # --- 3. Overrides injizieren ---
     
-    # Ports (ist bereits eine Liste von Strings durch list(str) im Schema)
-    port_mappings = options.get('port_mappings')
-    if port_mappings:
-        # Fügt die neuen Ports hinzu, überschreibt aber die alten, falls vorhanden
-        service['ports'] = port_mappings
-        print(f"[Override] Ports injiziert/überschrieben: {service['ports']}")
+    # Ports (NEUE LOGIK: Verarbeitet die strukturierte Liste)
+    port_mappings_structured = options.get('port_mappings')
+    if port_mappings_structured:
+        # Konvertiert die strukturierte Eingabe zu Docker Compose Format: ["HOST:CONTAINER", ...]
+        port_mappings_compose = []
+        for mapping in port_mappings_structured:
+            host_port = mapping.get('host')
+            container_port = mapping.get('container')
 
-    # Umgebungsvariablen (ist jetzt auch eine Liste von Strings durch list(str)?)
+            # Nur mappen, wenn beide Ports vorhanden sind
+            if host_port is not None and container_port is not None:
+                # Compose erwartet "HOST:CONTAINER"
+                port_mappings_compose.append(f"{host_port}:{container_port}")
+            elif container_port is not None:
+                 # Falls nur Container-Port angegeben (weniger üblich im HA-Kontext)
+                 port_mappings_compose.append(f"{container_port}")
+
+
+        if port_mappings_compose:
+            service['ports'] = port_mappings_compose
+            print(f"[Override] Ports injiziert/überschrieben: {service['ports']}")
+
+
+    # Umgebungsvariablen (bleibt gleich - liest list(str))
     env_vars_list = options.get('env_vars')
     if env_vars_list:
-        # Bestehende Umgebungsvariablen im Service beibehalten und neue hinzufügen/überschreiben
-        existing_env = service.get('environment', {}) # Kann Dict oder Liste sein
+        existing_env = service.get('environment', {}) 
         
-        # Konvertiere alle zu einem Dictionary für einfaches Überschreiben
         env_dict = {}
         
         # Bestehende Umgebungsvariablen in Dict konvertieren
@@ -149,19 +157,19 @@ def generate_addon_config(options):
                 key, val = item.split('=', 1)
                 env_dict[key] = val
             
-        # Compose V3 bevorzugt das Dictionary-Format
         service['environment'] = env_dict
         print(f"[Override] Umgebungsvariablen injiziert/aktualisiert: {service['environment']}")
 
-    # Command Override (ist ein einfacher String)
+    # Command Override (bleibt gleich)
     command_override = options.get('command_override')
     if command_override:
         service['command'] = command_override
         print(f"[Override] Command injiziert: {service['command']}")
 
-    # Geräte-Mappings (ist bereits eine Liste von Strings)
+    # Geräte-Mappings (bleibt gleich - liest list(device), welches Python als list(str) sieht)
     device_mappings = options.get('device_mappings')
     if device_mappings:
+        # device_mappings kommt als Liste von Gerätepfaden (Strings) an
         service['devices'] = device_mappings
         print(f"[Override] Devices injiziert/überschrieben: {service['devices']}")
 
@@ -169,7 +177,6 @@ def generate_addon_config(options):
     
     # Vorhandene Add-on-Struktur löschen, falls sie existiert
     if os.path.exists(addon_dir):
-        # Stoppen des Compose-Dienstes vor dem Löschen versuchen
         run_command(f"/usr/local/bin/docker-compose -p {addon_name} down", cwd=os.path.join(addon_dir, 'compose'))
         shutil.rmtree(addon_dir)
         print(f"[Clean] Vorheriges Add-on Verzeichnis gelöscht: {addon_dir}")
@@ -181,14 +188,14 @@ def generate_addon_config(options):
     compose_path = os.path.join(addon_dir, 'compose', 'docker-compose.yaml')
     with open(compose_path, 'w') as f:
         compose_data['name'] = addon_name
-        yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False) # sort_keys=False für bessere Lesbarkeit
+        yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
     print(f"[Datei] Compose-Datei mit Overrides gespeichert: {compose_path}")
 
     # --- 5. config.yaml und run.sh für das NEUE Add-on generieren ---
     
     addon_config_yaml = os.path.join(addon_dir, 'config.yaml')
     
-    # Minimales config.yaml (kann später erweitert werden)
+    # Minimales config.yaml
     config_content = {
         'name': f"Compose - {service_name}",
         'version': '1.0.0',
@@ -214,14 +221,9 @@ set -e
 cd {addon_dir}/compose
 
 echo "Starting Docker Compose service..."
-# Führt docker-compose up mit dem Projektnamen aus
 /usr/local/bin/docker-compose -p {addon_name} up -d
 
 echo "Service started in detached mode. Checking logs..."
-
-# Hier muss das Skript aktiv bleiben, damit der Supervisor den Add-on-Status als 'running' sieht.
-# Ansonsten würde das Add-on sofort wieder stoppen.
-# Wir verwenden Tail auf dem Log des ersten Containers (angenommen, er existiert und schreibt Logs).
 
 CONTAINER_NAME=$(/usr/local/bin/docker-compose -p {addon_name} ps -q {service_name})
 
@@ -230,11 +232,8 @@ if [ -z "$CONTAINER_NAME" ]; then
 else
     echo "Container Name: $CONTAINER_NAME"
     echo "Tailing logs. Press Ctrl+C in Supervisor Terminal to detach..."
-    # Folgt den Logs des Hauptcontainers
     /usr/bin/docker logs -f $CONTAINER_NAME
 fi
-
-# Wenn der Log-Tail beendet wird, hält auch das Add-on an.
 
 """
     run_sh_path = os.path.join(addon_dir, 'run.sh')
@@ -254,7 +253,6 @@ def main():
     options = load_options()
     action = options.get('action')
 
-    # Update des Projekt-Selectors (für Logging)
     update_project_selector(options)
 
     if action == 'none':
@@ -268,7 +266,6 @@ def main():
             print("[Aktion] Generierung fehlgeschlagen.")
             sys.exit(1)
         
-        # Wichtig: Nach der Aktion muss 'action' auf 'none' zurückgesetzt werden
         options['action'] = 'none'
         update_manager_options(options)
         
@@ -282,23 +279,18 @@ def main():
         if os.path.exists(addon_dir):
             print(f"[Aktion] Lösche Projekt '{project_slug}'...")
             
-            # 1. Compose Dienst stoppen und entfernen
             run_command(f"/usr/local/bin/docker-compose -p {project_slug} down", cwd=os.path.join(addon_dir, 'compose'))
             
-            # 2. Add-on-Verzeichnis löschen
             shutil.rmtree(addon_dir)
             print(f"[Aktion] Verzeichnis gelöscht: {addon_dir}")
         else:
             print(f"[Löschfehler] Projektverzeichnis '{project_slug}' nicht gefunden.")
         
-        # Zurücksetzen und Update
         options['project_name_selector'] = 'none'
         options['action'] = 'none'
         update_manager_options(options)
         
-    # Die Aktionen 'load_config' und 'down_and_remove' benötigen noch Logik
     elif action == 'load_config':
-        # Da load_config komplex ist und die Supervisor-API erfordert, hier nur ein Platzhalter:
         print("[Lade-Aktion] Die Logik zum Laden der Konfiguration ist komplex und erfordert die Supervisor-API. Funktion übersprungen.")
         options['action'] = 'none'
         update_manager_options(options)
