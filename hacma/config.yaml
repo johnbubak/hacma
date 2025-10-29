@@ -1,8 +1,8 @@
 # hacma/config.yaml
 name: HACMA - HA-Add-on Fabrikator
-version: 1.0.0
+version: 2.1.0 
 slug: hacma
-description: Dynamically generates new HA add-ons based on a Docker Compose YAML definition.
+description: Dynamically generates new HA add-ons based on a Docker Compose YAML definition fetched from a URL. Includes GitHub publishing feature.
 url: 'https://github.com/johnbubak/hacma'
 startup: once
 boot: manual
@@ -12,37 +12,57 @@ arch:
 host_network: true
 map:
   - homeassistant_config:rw
+
 options:
-  # Standard-Werte für alle Felder, um die Sichtbarkeit im UI zu gewährleisten
+  # Management
   project_name_selector: none
-  compose_yaml: []               
-  port_mappings: []              
-  env_vars: []                   
-  command_override: ""           
-  device_mappings: []            
+  compose_url: ""             
   action: none
+  
+  # NEUE GITHUB FELDER
+  publish_addon: false               
+  github_pat: ""                     
+
+  # Service Overrides
+  image: ""
+  container_name: ""
+  restart: "unless-stopped"      
+  command: ""
+  ports: ""
+  environment: ""
+  volumes: ""
+  devices: ""
+  networks: ""
+  
+  # Top-Level Definitionen
+  top_level_volumes: ""
+  top_level_networks: ""
+
 schema:
-  # --- 1. PROJEKT-MANAGER ---
+  # --- 1. PROJEKT-MANAGER (Laden/Löschen) ---
   project_name_selector: 'match(^none$)'
   
-  # --- 2. HAUPT-EINGABE (TEXTAREA) ---
-  compose_yaml: 'list(str)'
+  # --- 2. HAUPT-EINGABE ---
+  compose_url: 'str'
   
-  # --- 3. SPEZIFISCHE OVERRIDES (STRUKTURIERT & TYP-VERWENDUNG) ---
+  # --- 3. GITHUB VERÖFFENTLICHUNG ---
+  publish_addon: 'bool'         
+  github_pat: 'str?'           
   
-  # Port-Mapping: Strukturiert, host und container verwenden den HA-Typ 'port'
-  port_mappings:
-    - host: port?
-      container: port?
+  # --- 4. SPEZIFISCHE SERVICE OVERRIDES ---
+  image: 'str?'
+  container_name: 'str?'
+  restart: 'str?'
+  command: 'str?'   
+  ports: 'str?'     
+  environment: 'str?'
+  volumes: 'str?'   
+  devices: 'str?'   
+  networks: 'str?'  
   
-  # Umgebungsvariablen (Bleibt als list(str) für einfache Textarea)
-  env_vars: 'list(str)?'
+  # --- 5. TOP-LEVEL DEFINITIONEN ---
+  top_level_volumes: 'str?'
+  top_level_networks: 'str?'
   
-  # Command Override
-  command_override: 'str?'
-  
-  # Geräte-Mappings: Verwendet den spezifischen 'device'-Typ
-  device_mappings: 'list(device)?'
-  
-  # --- 4. AKTION ---
+  # --- 6. AKTION ---
   action: 'match(^none$|^load_config$|^generate_and_up$|^down_and_remove$)'

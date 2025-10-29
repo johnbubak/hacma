@@ -5,16 +5,21 @@ import sys
 import subprocess
 import yaml
 import re
+import requests
+from urllib.parse import urlparse
 
 # --- KONSTANTEN ---
 OPTIONS_FILE = "/data/options.json"
-# Das lokale Add-on Repo auf dem HAOS Host.
 ADDONS_BASE_PATH = "/usr/share/hassio/addons/local"
+HACMA_CONFIG_PATH = "/config/hacma/projects" 
+# GITHUB KONSTANTEN
+GITHUB_REPO_URL = "https://github.com/johnbubak/hacma.git" 
+GITHUB_REPO_DIR = "/tmp/hacma_git_repo"                    
+GITHUB_BRANCH = "main"
+TARGET_ADDON_DIR_IN_REPO = "local"                         # Der Zielordner im Repository (z.B. Ihr 'local'-Repo-Ordner)
 
-# --- HILFSFUNKTIONEN --- 
-
+# --- HILFSFUNKTIONEN (unverändert) --- 
 def load_options():
-    """Lädt die Konfiguration des Compose Managers (/data/options.json)."""
     if not os.path.exists(OPTIONS_FILE):
         print("Fehler: Konfigurationsdatei nicht gefunden.")
         sys.exit(1)
@@ -22,7 +27,6 @@ def load_options():
         return json.load(f)
 
 def update_manager_options(new_options_content):
-    """Schreibt die Optionen des Compose Managers zurück (für das Zurücksetzen der Aktion)."""
     try:
         with open(OPTIONS_FILE, 'w') as f:
             json.dump(new_options_content, f, indent=2)
@@ -31,8 +35,10 @@ def update_manager_options(new_options_content):
         print(f"[Manager-Update] FEHLER beim Schreiben der Manager-Optionen: {e}")
 
 def run_command(command, cwd=None):
-    """Führt einen Shell-Befehl aus und gibt die Ausgabe zurück."""
     try:
+        # GitHub-Token im Log unterdrücken
+        clean_command = re.sub(r'https://.*@', 'https://[TOKEN_REMOVED]@', command)
+        
         result = subprocess.run(
             command,
             cwd=cwd,
@@ -41,264 +47,250 @@ def run_command(command, cwd=None):
             capture_output=True,
             text=True
         )
-        print(f"[CMD OK] {command}")
+        print(f"[CMD OK] {clean_command}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"[CMD FEHLER] {command}")
+        clean_command = re.sub(r'https://.*@', 'https://[TOKEN_REMOVED]@', command)
+        print(f"[CMD FEHLER] {clean_command}")
         print(f"Stdout: {e.stdout}")
         print(f"Stderr: {e.stderr}")
         return False
 
 def get_existing_projects():
-    """Sucht nach existierenden, vom Fabrikator erzeugten Projekten."""
     projects = {}
     if not os.path.exists(ADDONS_BASE_PATH):
         return projects
 
     for name in os.listdir(ADDONS_BASE_PATH):
-        # Nur compose-Projekte berücksichtigen
         if name.startswith('compose-'):
             addon_dir = os.path.join(ADDONS_BASE_PATH, name)
-            compose_path = os.path.join(addon_dir, 'compose', 'docker-compose.yaml')
-            
-            if os.path.isfile(compose_path):
-                projects[name] = compose_path
+            config_path = os.path.join(addon_dir, 'config.yaml')
+            if os.path.isfile(config_path):
+                projects[name] = config_path
                 
     return projects
 
 def update_project_selector(current_options):
-    """Prüft existierende Projekte und loggt sie (da Schema-Update per API komplex ist)."""
     projects = get_existing_projects()
     print(f"\n[Projekt-Update] Gefundene Projekte: {list(projects.keys())}")
     return projects
 
-# --- 2. CONFIG LOGIK: FINAL ---
+def download_compose_file(url):
+    print(f"\n[Download] Starte Download von: {url}")
+    try:
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+
+        compose_data = yaml.safe_load(response.text)
+
+        if not isinstance(compose_data, dict) or 'services' not in compose_data:
+            print("[FEHLER] Heruntergeladener Inhalt ist keine gültige Compose-Datei.")
+            return None
+            
+        print("[Download] Compose-Datei erfolgreich heruntergeladen und validiert.")
+        return compose_data
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[FEHLER] Fehler beim Herunterladen der URL: {e}")
+        return None
+    except yaml.YAMLError as e:
+        print(f"[FEHLER] Ungültige YAML-Syntax in der heruntergeladenen Datei: {e}")
+        return None
+
+def publish_addon_to_github(addon_name, addon_dir, pat):
+    if os.path.exists(GITHUB_REPO_DIR):
+        shutil.rmtree(GITHUB_REPO_DIR)
+        
+    os.makedirs(GITHUB_REPO_DIR, exist_ok=True)
+    
+    parsed_url = urlparse(GITHUB_REPO_URL)
+    auth_url = f"{parsed_url.scheme}://{pat}@{parsed_url.netloc}{parsed_url.path}"
+    
+    print(f"\n[GitHub] Klone Repository {GITHUB_REPO_URL}...")
+    if not run_command(f"git clone {auth_url} {GITHUB_REPO_DIR}", cwd="/tmp"):
+        print("[FEHLER] Klonen des Repositories fehlgeschlagen. PAT prüfen.")
+        return False
+        
+    run_command("git config user.email 'hacma@addon.local'", cwd=GITHUB_REPO_DIR)
+    run_command("git config user.name 'HACMA Add-on Fabrikator'", cwd=GITHUB_REPO_DIR)
+    
+    target_dir = os.path.join(GITHUB_REPO_DIR, TARGET_ADDON_DIR_IN_REPO, addon_name)
+    
+    if os.path.exists(target_dir):
+        shutil.rmtree(target_dir)
+        print(f"[GitHub] Vorherige Add-on-Dateien im Repo gelöscht: {target_dir}")
+        
+    # Kopiere config.yaml und run.sh in das Zielverzeichnis (der Compose-Ordner wird NICHT benötigt)
+    os.makedirs(target_dir, exist_ok=True)
+    shutil.copy(os.path.join(addon_dir, 'config.yaml'), target_dir)
+    shutil.copy(os.path.join(addon_dir, 'run.sh'), target_dir)
+    print(f"[GitHub] Neue Add-on-Dateien kopiert nach: {target_dir}")
+    
+    commit_message = f"feat(addon): Neuer Add-on '{addon_name}' generiert via HACMA"
+    
+    if not run_command(f"git add .", cwd=GITHUB_REPO_DIR):
+        return False
+        
+    if not run_command(f"git commit -m \"{commit_message}\" --allow-empty", cwd=GITHUB_REPO_DIR):
+        pass # Kann fehlschlagen, wenn keine Änderung, ist OK
+        
+    print("[GitHub] Pushe Änderungen...")
+    if not run_command(f"git push origin {GITHUB_BRANCH}", cwd=GITHUB_REPO_DIR):
+        return False
+        
+    print(f"\n[VERÖFFENTLICHUNG ERFOLG] Add-on '{addon_name}' wurde erfolgreich in GitHub veröffentlicht.")
+    return True
+
+
+# --- 2. HAUPT-LOGIK: GENERIERUNG ---
 
 def generate_addon_config(options):
-    """
-    Generiert die neuen Add-on-Dateien basierend auf der Compose-YAML und den Overrides.
-    """
     
-    # --- 1. Compose YAML laden (als Liste der Zeilen) ---
-    compose_yaml_list = options.get('compose_yaml', [])
-    if not compose_yaml_list:
-        print("[FEHLER] Compose YAML Definition fehlt.")
+    compose_url = options.get('compose_url')
+    if not compose_url:
+        print("[FEHLER] Compose URL fehlt.")
         return False
 
-    # Liste der Zeilen zu einem einzigen String zusammenfügen
-    compose_yaml_string = '\n'.join(compose_yaml_list) 
-
-    try:
-        compose_data = yaml.safe_load(compose_yaml_string)
-    except yaml.YAMLError as e:
-        print(f"[FEHLER] Ungültige Compose YAML Syntax: {e}")
+    compose_data = download_compose_file(compose_url)
+    if not compose_data:
         return False
 
     if 'services' not in compose_data or not compose_data['services']:
         print("[FEHLER] Keine 'services' in der Compose YAML gefunden.")
         return False
         
-    # --- 2. Ziel-Service identifizieren (den ersten Service im Dict) ---
+    # Projekt-Namen ableiten
     service_name = list(compose_data['services'].keys())[0]
-    service = compose_data['services'][service_name]
-    
-    # Den Compose-Projektnamen vom Service-Namen ableiten
-    project_slug = re.sub(r'[^a-z0-9]+', '', service_name.lower())
+    first_service = compose_data['services'][service_name]
+    base_name = first_service.get('image', service_name)
+    project_slug = re.sub(r'[^a-z0-9]+', '', base_name.lower())
     addon_name = f"compose-{project_slug}"
     addon_dir = os.path.join(ADDONS_BASE_PATH, addon_name)
     
     print(f"\n[Generierung] Starte Erstellung von Add-on '{addon_name}'")
     
-    # --- 3. Overrides injizieren ---
+    # --- 2. Overrides injizieren ---
     
-    # Ports (NEUE LOGIK: Verarbeitet die strukturierte Liste)
-    port_mappings_structured = options.get('port_mappings')
-    if port_mappings_structured:
-        # Konvertiert die strukturierte Eingabe zu Docker Compose Format: ["HOST:CONTAINER", ...]
-        port_mappings_compose = []
-        for mapping in port_mappings_structured:
-            host_port = mapping.get('host')
-            container_port = mapping.get('container')
-
-            # Nur mappen, wenn beide Ports vorhanden sind
-            if host_port is not None and container_port is not None:
-                # Compose erwartet "HOST:CONTAINER"
-                port_mappings_compose.append(f"{host_port}:{container_port}")
-            elif container_port is not None:
-                 # Falls nur Container-Port angegeben (weniger üblich im HA-Kontext)
-                 port_mappings_compose.append(f"{container_port}")
-
-
-        if port_mappings_compose:
-            service['ports'] = port_mappings_compose
-            print(f"[Override] Ports injiziert/überschrieben: {service['ports']}")
-
-
-    # Umgebungsvariablen (bleibt gleich - liest list(str))
-    env_vars_list = options.get('env_vars')
-    if env_vars_list:
-        existing_env = service.get('environment', {}) 
-        
-        env_dict = {}
-        
-        # Bestehende Umgebungsvariablen in Dict konvertieren
-        if isinstance(existing_env, list):
-             for item in existing_env:
-                if '=' in item:
-                    key, val = item.split('=', 1)
-                    env_dict[key] = val
-        elif isinstance(existing_env, dict):
-            env_dict.update(existing_env)
-
-        # Neue Umgebungsvariablen aus der Liste hinzufügen/überschreiben
-        for item in env_vars_list:
-            item = item.strip()
-            if item and '=' in item:
-                key, val = item.split('=', 1)
-                env_dict[key] = val
-            
-        service['environment'] = env_dict
-        print(f"[Override] Umgebungsvariablen injiziert/aktualisiert: {service['environment']}")
-
-    # Command Override (bleibt gleich)
-    command_override = options.get('command_override')
-    if command_override:
-        service['command'] = command_override
-        print(f"[Override] Command injiziert: {service['command']}")
-
-    # Geräte-Mappings (bleibt gleich - liest list(device), welches Python als list(str) sieht)
-    device_mappings = options.get('device_mappings')
-    if device_mappings:
-        # device_mappings kommt als Liste von Gerätepfaden (Strings) an
-        service['devices'] = device_mappings
-        print(f"[Override] Devices injiziert/überschrieben: {service['devices']}")
-
-    # --- 4. Dateistruktur vorbereiten & Schreiben ---
+    service = first_service
     
-    # Vorhandene Add-on-Struktur löschen, falls sie existiert
+    # --- 2.1 Top-Level Definitionen (volumes, networks) ---
+    def parse_and_inject_top_level(key, options, target_data):
+        # 'top_level_volumes' -> 'volumes'
+        yaml_string = options.get(f"top_level_{key}")
+        if yaml_string:
+            try:
+                parsed_val = yaml.safe_load(yaml_string)
+                if isinstance(parsed_val, dict):
+                    target_data[key] = parsed_val
+                    print(f"[Override] Top-Level '{key}' injiziert.")
+            except yaml.YAMLError as e:
+                print(f"[FEHLER] Ungültige YAML-Syntax in Top-Level '{key}': {e}")
+    
+    parse_and_inject_top_level('volumes', options, compose_data)
+    parse_and_inject_top_level('networks', options, compose_data)
+
+
+    # --- 2.2 Service Overrides injizieren ---
+    
+    # Einfache Strings
+    for key in ['image', 'container_name', 'restart']:
+        if options.get(key): 
+            service[key] = options[key]
+            print(f"[Override] {key} injiziert: {service[key]}")
+        
+    # Komplexe YAML-Block Overrides
+    def parse_and_inject_yaml(key, options, target_service):
+        yaml_string = options.get(key)
+        if yaml_string:
+            try:
+                parsed_val = yaml.safe_load(yaml_string)
+                if parsed_val is not None:
+                    target_service[key] = parsed_val
+                    print(f"[Override] {key} injiziert.")
+                    return True
+            except yaml.YAMLError as e:
+                print(f"[FEHLER] Ungültige YAML-Syntax in {key}: {e}")
+        return False
+
+    parse_and_inject_yaml('ports', options, service)
+    parse_and_inject_yaml('volumes', options, service)
+    parse_and_inject_yaml('devices', options, service)
+    parse_and_inject_yaml('command', options, service)
+    parse_and_inject_yaml('networks', options, service)
+    
+    # environment (Spezialfall: Update/Merge)
+    env_vars_yaml_string = options.get('environment')
+    if env_vars_yaml_string:
+        try:
+            env_vars_parsed = yaml.safe_load(env_vars_yaml_string)
+            if env_vars_parsed:
+                current_env_dict = {}
+                existing_env = service.get('environment', {}) 
+                
+                if isinstance(existing_env, list):
+                    for item in existing_env:
+                        if isinstance(item, str) and '=' in item:
+                            k, v = item.split('=', 1)
+                            current_env_dict[k] = v
+                elif isinstance(existing_env, dict):
+                    current_env_dict.update(existing_env)
+                
+                if isinstance(env_vars_parsed, dict):
+                     current_env_dict.update(env_vars_parsed)
+                elif isinstance(env_vars_parsed, list):
+                     for item in env_vars_parsed:
+                        if isinstance(item, str) and '=' in item:
+                            k, v = item.split('=', 1)
+                            current_env_dict[k] = v
+                
+                service['environment'] = current_env_dict
+                print(f"[Override] environment injiziert/aktualisiert.")
+                
+        except yaml.YAMLError as e:
+            print(f"[FEHLER] Ungültige YAML-Syntax in environment: {e}")
+
+
+    # --- 3. Lokale Dateistruktur vorbereiten & Schreiben ---
+    
+    # Altes Add-on herunterfahren und löschen (Lokales Deployment)
     if os.path.exists(addon_dir):
-        run_command(f"/usr/local/bin/docker-compose -p {addon_name} down", cwd=os.path.join(addon_dir, 'compose'))
+        compose_config_dir_tmp = os.path.join(HACMA_CONFIG_PATH, addon_name)
+        compose_path_in_config_tmp = os.path.join(compose_config_dir_tmp, 'docker-compose.yaml')
+        if os.path.exists(compose_path_in_config_tmp):
+             run_command(f"/usr/local/bin/docker-compose -f {compose_path_in_config_tmp} -p {addon_name} down", cwd=compose_config_dir_tmp)
+             
         shutil.rmtree(addon_dir)
-        print(f"[Clean] Vorheriges Add-on Verzeichnis gelöscht: {addon_dir}")
         
     os.makedirs(addon_dir, exist_ok=True)
-    os.makedirs(os.path.join(addon_dir, 'compose'), exist_ok=True)
-    
-    # Compose-Datei schreiben (mit Overrides)
-    compose_path = os.path.join(addon_dir, 'compose', 'docker-compose.yaml')
-    with open(compose_path, 'w') as f:
-        compose_data['name'] = addon_name
-        yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
-    print(f"[Datei] Compose-Datei mit Overrides gespeichert: {compose_path}")
+    os.makedirs(os.path.join(addon_dir, 'compose'), exist_ok=True) # compose-Ordner wird erstellt, aber nicht genutzt
 
-    # --- 5. config.yaml und run.sh für das NEUE Add-on generieren ---
+    # Schreibe die ÜBERSCHRIEBENE Compose-Datei in den /config-Ordner (für Benutzer-Zugriff)
+    compose_config_dir = os.path.join(HACMA_CONFIG_PATH, addon_name)
+    os.makedirs(compose_config_dir, exist_ok=True)
+    compose_path_in_config = os.path.join(compose_config_dir, 'docker-compose.yaml')
+    
+    with open(compose_path_in_config, 'w') as f:
+        compose_data['name'] = addon_name 
+        yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
+    print(f"[Datei] Überschriebene Compose-Datei gespeichert in: {compose_path_in_config}")
+
+    # --- 4. config.yaml und run.sh für das NEUE Add-on generieren ---
     
     addon_config_yaml = os.path.join(addon_dir, 'config.yaml')
-    
-    # Minimales config.yaml
     config_content = {
-        'name': f"Compose - {service_name}",
+        'name': f"Compose - {service_name}", 
         'version': '1.0.0',
         'slug': addon_name,
-        'description': f"Containerized service '{service_name}' via HACMA. Base Image: {service.get('image', 'n/a')}",
+        'description': f"Containerized service '{service_name}' via HACMA. Config: {compose_path_in_config}",
         'startup': 'before',
         'boot': 'auto',
         'arch': ['amd64', 'aarch64'],
         'host_network': True,
-        'map': ['homeassistant_config:rw'],
+        'map': ['homeassistant_config:rw'], 
         'options': {},
         'schema': {}
     }
     with open(addon_config_yaml, 'w') as f:
         yaml.dump(config_content, f, default_flow_style=False, sort_keys=False)
-    print(f"[Datei] config.yaml für Add-on '{addon_name}' generiert.")
-
-    # run.sh für das generierte Add-on (startet den Dienst)
-    run_sh_content = f"""#!/bin/bash
-set -e
-
-# Wichtig: Wechseln in das Compose-Verzeichnis
-cd {addon_dir}/compose
-
-echo "Starting Docker Compose service..."
-/usr/local/bin/docker-compose -p {addon_name} up -d
-
-echo "Service started in detached mode. Checking logs..."
-
-CONTAINER_NAME=$(/usr/local/bin/docker-compose -p {addon_name} ps -q {service_name})
-
-if [ -z "$CONTAINER_NAME" ]; then
-    echo "ERROR: Container for service '{service_name}' not found after startup."
-else
-    echo "Container Name: $CONTAINER_NAME"
-    echo "Tailing logs. Press Ctrl+C in Supervisor Terminal to detach..."
-    /usr/bin/docker logs -f $CONTAINER_NAME
-fi
-
-"""
-    run_sh_path = os.path.join(addon_dir, 'run.sh')
-    with open(run_sh_path, 'w') as f:
-        f.write(run_sh_content)
-    os.chmod(run_sh_path, 0o755)
-    print(f"[Datei] run.sh für Add-on '{addon_name}' generiert.")
-
-    print(f"\n[ERFOLG] Add-on '{addon_name}' wurde erstellt!")
-    print("Bitte den Home Assistant Add-on Store manuell aktualisieren, um das neue Add-on zu sehen.")
-    return True
-
-# --- 3. HAUPT-PROGRAMMLOGIK ---
-
-def main():
-    """Hauptfunktion des Fabrikators."""
-    options = load_options()
-    action = options.get('action')
-
-    update_project_selector(options)
-
-    if action == 'none':
-        print("[Aktion] Keine Aktion gewählt. Beende.")
-        sys.exit(0)
     
-    elif action == 'generate_and_up':
-        if generate_addon_config(options):
-            print("[Aktion] Add-on generiert und gestartet.")
-        else:
-            print("[Aktion] Generierung fehlgeschlagen.")
-            sys.exit(1)
-        
-        options['action'] = 'none'
-        update_manager_options(options)
-        
-    elif action == 'down_and_remove':
-        project_slug = options.get('project_name_selector')
-        if project_slug == 'none':
-            print("[Löschfehler] Bitte ein Projekt auswählen.")
-            sys.exit(1)
-            
-        addon_dir = os.path.join(ADDONS_BASE_PATH, project_slug)
-        if os.path.exists(addon_dir):
-            print(f"[Aktion] Lösche Projekt '{project_slug}'...")
-            
-            run_command(f"/usr/local/bin/docker-compose -p {project_slug} down", cwd=os.path.join(addon_dir, 'compose'))
-            
-            shutil.rmtree(addon_dir)
-            print(f"[Aktion] Verzeichnis gelöscht: {addon_dir}")
-        else:
-            print(f"[Löschfehler] Projektverzeichnis '{project_slug}' nicht gefunden.")
-        
-        options['project_name_selector'] = 'none'
-        options['action'] = 'none'
-        update_manager_options(options)
-        
-    elif action == 'load_config':
-        print("[Lade-Aktion] Die Logik zum Laden der Konfiguration ist komplex und erfordert die Supervisor-API. Funktion übersprungen.")
-        options['action'] = 'none'
-        update_manager_options(options)
-        
-    else:
-        print(f"[FEHLER] Unbekannte Aktion: {action}")
-        sys.exit(1)
-
-# Startpunkt
-if __name__ == "__main__":
-    main()
+    run_sh_content = f"""#!/
