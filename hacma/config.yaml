@@ -1,6 +1,6 @@
 # hacma/config.yaml (im Ordner hacma/)
 name: HACMA - HA-Add-on Fabrikator
-version: 1.0.0
+version: 0.0.1
 slug: hacma
 description: Dynamically generates new HA add-ons based on a Docker Compose YAML definition.
 url: 'https://github.com/johnbubak/hacma'
@@ -13,34 +13,33 @@ host_network: true
 map:
   - homeassistant_config:rw
 options:
-  # Initialwerte für alle Felder
   project_name_selector: none
-  compose_yaml: ""
-  port_mappings: []       # Liste der Port-Mappings
-  env_vars: ""            # Umgebungsvariablen
-  command_override: ""    # Befehls-Override
-  device_mappings: []     # Geräte-Mappings
+  compose_yaml: []               # Initialwert muss zu 'list' passen
+  port_mappings: []
+  env_vars: []                   # Initialwert muss zu 'list' passen
+  command_override: ""
+  device_mappings: []
   action: none
 schema:
   # --- 1. PROJEKT-MANAGER ---
   project_name_selector: 'match(^none$)'
   
-  # --- 2. HAUPT-EINGABE (Textarea für schnellen Import) ---
-  # Bleibt 'str', wird als mehrzeilige Textarea gerendert
-  compose_yaml: str
+  # --- 2. HAUPT-EINGABE (WIRD ZUR TEXTAREA DURCH LIST) ---
+  # ÄNDERUNG: 'list(str)' erzwingt eine Textarea.
+  # DAS SKRIPT MUSS DIESEN LIST-TYP BEHANDELN!
+  compose_yaml: 'list(str)'
   
-  # --- 3. SPEZIFISCHE OVERRIDES (CasaOS-Simulation) ---
-  
-  # Port-Mapping: 'list(str)?' rendert eine Textarea, deren Zeilen als Liste übergeben werden (z.B. "8080:80")
+  # --- 3. SPEZIFISCHE OVERRIDES ---
+  # 'list(str)?' sollte bereits eine Textarea rendern
   port_mappings: 'list(str)?'
   
-  # Umgebungsvariablen: 'str?' rendert eine Textarea (z.B. "TZ=Europe/Berlin\nVAR=wert")
-  env_vars: 'str?'
+  # ÄNDERUNG: Auch ENV_VARS auf LIST umgestellt, um sicher Textarea zu bekommen
+  env_vars: 'list(str)?'
   
-  # Command Override: 'str?' rendert eine Textarea (für einen neuen Startbefehl)
+  # Command Override: Bleibt 'str?' (einzeilig), da es meist ein einzelner Befehl ist.
+  # Wenn Sie auch hier eine Textarea wollen: auf 'list(str)?' umstellen.
   command_override: 'str?'
   
-  # Geräte-Mappings: 'list(str)?' rendert eine Textarea (z.B. "/dev/ttyACM0:/dev/ttyACM0")
   device_mappings: 'list(str)?'
   
   # --- 4. AKTION ---
