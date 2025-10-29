@@ -1,3 +1,4 @@
+# hacma/config.yaml (im Ordner hacma/)
 name: HACMA - HA-Add-on Fabrikator
 version: 1.0.0
 slug: hacma
@@ -10,13 +11,37 @@ arch:
   - aarch64
 host_network: true
 map:
-  - homeassistant_config:rw # Korrigiert: Neuer Standard-Pfad
+  - homeassistant_config:rw
 options:
+  # Initialwerte für alle Felder
   project_name_selector: none
   compose_yaml: ""
+  port_mappings: []       # Liste der Port-Mappings
+  env_vars: ""            # Umgebungsvariablen
+  command_override: ""    # Befehls-Override
+  device_mappings: []     # Geräte-Mappings
   action: none
 schema:
-  # Korrigiert: Dies ist das minimal erforderliche, funktionale String-Schema.
-  project_name_selector: 'select(none)'
+  # --- 1. PROJEKT-MANAGER ---
+  project_name_selector: 'match(^none$)'
+  
+  # --- 2. HAUPT-EINGABE (Textarea für schnellen Import) ---
+  # Bleibt 'str', wird als mehrzeilige Textarea gerendert
   compose_yaml: str
-  action: 'select(none|load_config|generate_and_up|down_and_remove)'
+  
+  # --- 3. SPEZIFISCHE OVERRIDES (CasaOS-Simulation) ---
+  
+  # Port-Mapping: 'list(str)?' rendert eine Textarea, deren Zeilen als Liste übergeben werden (z.B. "8080:80")
+  port_mappings: 'list(str)?'
+  
+  # Umgebungsvariablen: 'str?' rendert eine Textarea (z.B. "TZ=Europe/Berlin\nVAR=wert")
+  env_vars: 'str?'
+  
+  # Command Override: 'str?' rendert eine Textarea (für einen neuen Startbefehl)
+  command_override: 'str?'
+  
+  # Geräte-Mappings: 'list(str)?' rendert eine Textarea (z.B. "/dev/ttyACM0:/dev/ttyACM0")
+  device_mappings: 'list(str)?'
+  
+  # --- 4. AKTION ---
+  action: 'match(^none$|^load_config$|^generate_and_up$|^down_and_remove$)'
