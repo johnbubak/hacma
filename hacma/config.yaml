@@ -10,13 +10,12 @@ arch:
   - aarch64
 host_network: true
 map:
-  - homeassistant_config:rw # Korrigiert: Neuer Standard-Pfad
+  - homeassistant_config:rw
 options:
   project_name_selector: none
   compose_yaml: ""
   action: none
 schema:
-  # Korrigiert: Dies ist das minimal erforderliche, funktionale String-Schema.
-  project_name_selector: 'select(none)'
+  project_name_selector: 'match(^none$)'
   compose_yaml: str
-  action: 'select(none|load_config|generate_and_up|down_and_remove)'
+  action: 'match(^none$|^load_config$|^generate_and_up$|^down_and_remove$)'
