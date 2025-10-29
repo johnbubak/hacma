@@ -2,3 +2,6 @@
 name: HACMA - HA-Add-on Fabrikator
 url: 'https://github.com/johnbubak/hacma'
 maintainer: John Bubak <johnbubak@gmail.com>
+addons:
+  - slug: hacma
+    source: "."
